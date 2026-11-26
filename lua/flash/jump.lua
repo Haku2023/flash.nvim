@@ -2,6 +2,7 @@ local Hacks = require("flash.hacks")
 local Pos = require("flash.search.pos")
 local Util = require("flash.util")
 local M = {}
+local remote_origin_ns = vim.api.nvim_create_namespace("flash_remote_origin")
 
 ---@param match Flash.Match
 ---@param state Flash.State
@@ -57,6 +58,27 @@ end
 ---@param register string
 ---@return Flash.Match?
 function M.remote_op(match, state, register)
+  if state.opts.remote_op.restore then
+    local win = vim.api.nvim_get_current_win()
+    local buf = vim.api.nvim_win_get_buf(win)
+    local cursor = vim.api.nvim_win_get_cursor(win)
+    local mark = vim.api.nvim_buf_set_extmark(buf, remote_origin_ns, cursor[1] - 1, cursor[2], {})
+    local restore = state.restore
+
+    function state:restore()
+      self.restore = restore
+      restore(self)
+
+      if vim.api.nvim_buf_is_valid(buf) then
+        local pos = vim.api.nvim_buf_get_extmark_by_id(buf, remote_origin_ns, mark, {})
+        vim.api.nvim_buf_del_extmark(buf, remote_origin_ns, mark)
+
+        if #pos == 2 and vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
+          vim.api.nvim_win_set_cursor(win, { pos[1] + 1, pos[2] })
+        end
+      end
+    end
+  end
   Util.exit()
   -- schedule this so that the  active operator is properly cancelled
   vim.schedule(function()
